@@ -1,0 +1,98 @@
+# 1. create worker user and group
+# 2. download archive
+# 3. extract archive, and register systemd service
+# long term: add worker spawning harness
+# https://github.com/actions/runner/releases
+#
+# TODO: split this into the main file, and an include looping over github runner variable
+- set_fact:
+    _user: "{{github.user|default('github')}}"
+    _group: "{{github.group|default('github')}}"
+    _labels: ansible-worker
+
+- set_fact:
+    _home: "/srv/{{_user}}"
+
+- set_fact:
+    _runner_dir: "{{_home}}/runner"
+
+- set_fact:
+    _labels: "{{github_worker_labels|join(',')}}"
+  when: github_worker_labels is defined
+
+# TODO: this is a a bit of partial logic for supporting multiple runners on a
+#       single host; eventually that'd need to be replaced with a proper name
+#       read from instance specific configuration
+- set_fact:
+    _runner_name: default
+
+- set_fact:
+    _gh_installer: "https://github.com/actions/runner/releases/download/v2.283.1/actions-runner-linux-x64-2.283.1.tar.gz"
+  when: _gh_installer is undefined
+
+- name: add groups
+  group:
+    name: "{{_group}}"
+    system: yes
+
+- name: add user
+  user:
+    name: "{{_user}}"
+    group: "{{_group}}"
+    createhome: yes
+    home: "{{_home}}"
+    system: yes
+
+- name: create override directory for service
+  file:
+    path: "/etc/systemd/system/actions.runner@{{_runner_name}}.service.d"
+    owner: "root"
+    group: "root"
+    mode: "u=rwx,g=rx,o=r"
+    state: directory
+
+- name: create directory for github runner
+  file:
+    path: "{{_runner_dir}}"
+    owner: "{{_user}}"
+    group: "{{_group}}"
+    mode: "u=rwx,g=rx,o=r"
+    state: directory
+
+- name: extract github runner
+  unarchive:
+    src: "{{_gh_installer}}"
+    dest: "{{_runner_dir}}"
+    owner: "{{_user}}"
+    remote_src: yes
+
+- name: copy override configuration
+  template:
+    src: actions.runner.conf.j2
+    dest: "/etc/systemd/system/actions.runner@{{_runner_name}}.service.d/override.conf"
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+
+- name: copy service file
+  template:
+    src: actions.runner@.service.j2
+    dest: /etc/systemd/system/actions.runner@.service
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+
+- name: register github worker
+  command: >
+    ./config.sh --url {{github_worker.repository}} --name {{inventory_hostname}} --work {{_home}}/work --replace --unattended --labels {{_labels}} --token {{gh_token}}
+  args:
+    chdir: "{{_runner_dir}}"
+  when: gh_token is defined
+  become: True
+  become_user: "{{_user}}"
+
+- name: start and enable service
+  service:
+    enabled: yes
+    state: started
+    name: "actions.runner@{{_runner_name}}"

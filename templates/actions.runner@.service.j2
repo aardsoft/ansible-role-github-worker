@@ -1,0 +1,12 @@
+[Unit]
+Description=Github runner instance for %i
+After=network.target
+
+[Service]
+# Those three need to be set by service overrides
+KillMode=process
+KillSignal=SIGTERM
+TimeoutStopSec=5min
+
+[Install]
+WantedBy=multi-user.target

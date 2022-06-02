@@ -1,0 +1,16 @@
+# common variable setup goes here
+
+- set_fact:
+    _labels: ansible-worker
+
+- set_fact:
+    _labels: "{{github_worker_labels|join(',')}}"
+  when: github_worker_labels is defined
+
+- name: include main tasks for non-Windows
+  include_tasks: main_default.yml
+  when: ansible_os_family != "Windows"
+
+- name: include main tasks for windows
+  include_tasks: main_windows.yml
+  when: ansible_os_family == "Windows"

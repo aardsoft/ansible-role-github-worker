@@ -1,0 +1,9 @@
+# url: "https://github.com/actions/runner/releases/download/v2.280.2/actions-runner-win-x64-2.280.2.zip"
+# sha256: "0ccb26b3e077d428f1f8c5183a0bab3c3186a654b47017ba1c904c7d972de1ac"
+
+- name: register github worker
+  win_command: >
+    config.cmd --url https://github.com/realm/realm-dotnet --name {{inventory_hostname}} --work c:\run --runasservice --replace --unattended --labels {{_labels}} --token {{gh_token}}
+  args:
+    chdir: 'c:\gh'
+  when: gh_token is defined

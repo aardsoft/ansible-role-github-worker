@@ -1,0 +1,5 @@
+* github-runner
+
+** Introduction
+
+This role helps with [[https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners][self-hosting GitHub runners]] on Windows and Linux. Registering a runner to GitHub requires a time limited token, and only needs to be executed once per runner. Therefore the runner registration is optional, and the token should be provided as variable to the ansible-playbook invokation with =-e gh_token=<token=.
