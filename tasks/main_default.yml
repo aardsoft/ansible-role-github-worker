@@ -12,6 +12,13 @@
 
 - set_fact:
     _home: "/srv/{{_user}}"
+  when: >
+    ansible_os_family != "Darwin"
+
+- set_fact:
+    _home: "/var/{{_user}}"
+  when: >
+    ansible_os_family == "Darwin"
 
 - set_fact:
     _runner_dir: "{{_home}}/runner"
@@ -27,8 +34,27 @@
     _runner_name: default
 
 - set_fact:
-    _gh_installer: "https://github.com/actions/runner/releases/download/v2.283.1/actions-runner-linux-x64-2.283.1.tar.gz"
-  when: _gh_installer is undefined
+    _gh_installer_version: "{{github.installer_version|default('2.292.0')}}"
+
+- set_fact:
+    _gh_installer: "https://github.com/actions/runner/releases/download/v{{_gh_installer_version}}/actions-runner-linux-x64-{{_gh_installer_version}}.tar.gz"
+  when: >
+    _gh_installer is undefined and
+    ansible_os_family != "Darwin"
+
+- set_fact:
+    _gh_installer: "https://github.com/actions/runner/releases/download/v{{_gh_installer_version}}/actions-runner-osx-x64-{{_gh_installer_version}}.tar.gz"
+  when: >
+    _gh_installer is undefined and
+    ansible_os_family == "Darwin" and
+    ansible_machine != "arm64"
+
+- set_fact:
+    _gh_installer: "https://github.com/actions/runner/releases/download/v{{_gh_installer_version}}/actions-runner-osx-arm64-{{_gh_installer_version}}.tar.gz"
+  when: >
+    _gh_installer is undefined and
+    ansible_os_family == "Darwin" and
+    ansible_machine == "arm64"
 
 - name: add groups
   group:
@@ -50,6 +76,8 @@
     group: "root"
     mode: "u=rwx,g=rx,o=r"
     state: directory
+  when: >
+    ansible_service_mgr == 'systemd'
 
 - name: create directory for github runner
   file:
@@ -65,6 +93,22 @@
     dest: "{{_runner_dir}}"
     owner: "{{_user}}"
     remote_src: yes
+  when: ansible_os_family != "Darwin"
+
+- include_role:
+    name: basic-host
+    tasks_from: with_gnu_tar
+  when: ansible_os_family == "Darwin"
+
+- name: extract github runner
+  unarchive:
+    src: "{{_gh_installer}}"
+    dest: "{{_runner_dir}}"
+    owner: "{{_user}}"
+    remote_src: yes
+  environment:
+    PATH: "{{path_with_gnu_tar}}"
+  when: ansible_os_family == "Darwin"
 
 - name: copy override configuration
   template:
@@ -73,6 +117,8 @@
     owner: root
     group: root
     mode: u=rw,g=r,o=r
+  when: >
+    ansible_service_mgr == 'systemd'
 
 - name: copy service file
   template:
@@ -81,10 +127,12 @@
     owner: root
     group: root
     mode: u=rw,g=r,o=r
+  when: >
+    ansible_service_mgr == 'systemd'
 
 - name: register github worker
   command: >
-    ./config.sh --url {{github_worker.repository}} --name {{inventory_hostname}} --work {{_home}}/work --replace --unattended --labels {{_labels}} --token {{gh_token}}
+    {{gitub.runner_arch|default('')}} ./config.sh --url {{github_worker.repository}} --name {{inventory_hostname}} --work {{_home}}/work --replace --unattended --labels {{_labels}} --token {{gh_token}}
   args:
     chdir: "{{_runner_dir}}"
   when: gh_token is defined
@@ -96,3 +144,4 @@
     enabled: yes
     state: started
     name: "actions.runner@{{_runner_name}}"
+  when: ansible_os_family != "Darwin"

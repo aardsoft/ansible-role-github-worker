@@ -2,4 +2,14 @@
 
 ** Introduction
 
-This role helps with [[https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners][self-hosting GitHub runners]] on Windows and Linux. Registering a runner to GitHub requires a time limited token, and only needs to be executed once per runner. Therefore the runner registration is optional, and the token should be provided as variable to the ansible-playbook invokation with =-e gh_token=<token=.
+This role helps with [[https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners][self-hosting GitHub runners]] on Windows, Linux and OS X. Registering a runner to GitHub requires a time limited token, and only needs to be executed once per runner. Therefore the runner registration is optional, and the token should be provided as variable to the ansible-playbook invokation with =-e gh_token=<token=.
+
+** Configuration options
+
+This role can be customized through a dict named =github=.
+
+*** installer_version
+The version of the installer to download. Currently this version only occasionally gets updated, so it may be sensible to set this to the latest release on [[https://github.com/actions/runner/releases][the actions runner release page]] before deploying.
+
+*** runner_arch
+A command used for switching architecture before starting the runner. This is mainly useful for M1 Macs, where setting this to =arch -x86_64= will have the runner be executed inside of Rosetta.
