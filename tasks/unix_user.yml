@@ -1,0 +1,30 @@
+- set_fact:
+    _github_user: "{{github.user|default('github')}}"
+    _github_group: "{{github.group|default('github')}}"
+    _labels: ansible-worker
+
+- set_fact:
+    _github_home: "/srv/{{_github_user}}"
+  when: >
+    ansible_os_family != "Darwin"
+
+- set_fact:
+    _github_home: "/var/{{_github_user}}"
+  when: >
+    ansible_os_family == "Darwin"
+
+- set_fact:
+    _runner_dir: "{{_github_home}}/runner"
+
+- name: add groups
+  group:
+    name: "{{_github_group}}"
+    system: yes
+
+- name: add user
+  user:
+    name: "{{_github_user}}"
+    group: "{{_github_group}}"
+    createhome: yes
+    home: "{{_github_home}}"
+    system: yes

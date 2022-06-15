@@ -5,27 +5,16 @@
 # https://github.com/actions/runner/releases
 #
 # TODO: split this into the main file, and an include looping over github runner variable
-- set_fact:
-    _user: "{{github.user|default('github')}}"
-    _group: "{{github.group|default('github')}}"
-    _labels: ansible-worker
 
-- set_fact:
-    _home: "/srv/{{_user}}"
-  when: >
-    ansible_os_family != "Darwin"
-
-- set_fact:
-    _home: "/var/{{_user}}"
-  when: >
-    ansible_os_family == "Darwin"
-
-- set_fact:
-    _runner_dir: "{{_home}}/runner"
+- name: include user creation tasks
+  include_tasks: unix_user.yml
 
 - set_fact:
     _labels: "{{github_worker_labels|join(',')}}"
   when: github_worker_labels is defined
+
+- set_fact:
+    _repository: "{{github_worker_repository|default(github_worker.repository)}}"
 
 # TODO: this is a a bit of partial logic for supporting multiple runners on a
 #       single host; eventually that'd need to be replaced with a proper name
@@ -56,19 +45,6 @@
     ansible_os_family == "Darwin" and
     ansible_machine == "arm64"
 
-- name: add groups
-  group:
-    name: "{{_group}}"
-    system: yes
-
-- name: add user
-  user:
-    name: "{{_user}}"
-    group: "{{_group}}"
-    createhome: yes
-    home: "{{_home}}"
-    system: yes
-
 - name: create override directory for service
   file:
     path: "/etc/systemd/system/actions.runner@{{_runner_name}}.service.d"
@@ -82,8 +58,8 @@
 - name: create directory for github runner
   file:
     path: "{{_runner_dir}}"
-    owner: "{{_user}}"
-    group: "{{_group}}"
+    owner: "{{_github_user}}"
+    group: "{{_github_group}}"
     mode: "u=rwx,g=rx,o=r"
     state: directory
 
@@ -91,7 +67,7 @@
   unarchive:
     src: "{{_gh_installer}}"
     dest: "{{_runner_dir}}"
-    owner: "{{_user}}"
+    owner: "{{_github_user}}"
     remote_src: yes
   when: ansible_os_family != "Darwin"
 
@@ -104,7 +80,7 @@
   unarchive:
     src: "{{_gh_installer}}"
     dest: "{{_runner_dir}}"
-    owner: "{{_user}}"
+    owner: "{{_github_user}}"
     remote_src: yes
   environment:
     PATH: "{{path_with_gnu_tar}}"
@@ -132,12 +108,12 @@
 
 - name: register github worker
   command: >
-    {{gitub.runner_arch|default('')}} ./config.sh --url {{github_worker.repository}} --name {{inventory_hostname}} --work {{_home}}/work --replace --unattended --labels {{_labels}} --token {{gh_token}}
+    {{gitub.runner_arch|default('')}} ./config.sh --url {{_repository}} --name {{inventory_hostname}} --work {{_github_home}}/work --replace --unattended --labels {{_labels}} --token {{gh_token}}
   args:
     chdir: "{{_runner_dir}}"
   when: gh_token is defined
   become: True
-  become_user: "{{_user}}"
+  become_user: "{{_github_user}}"
 
 - name: start and enable service
   service:
