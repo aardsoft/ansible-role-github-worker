@@ -4,13 +4,19 @@
     _labels: ansible-worker
 
 - set_fact:
+    _github_home: "{{github.home}}"
+  when: github.home is defined
+
+- set_fact:
     _github_home: "/srv/{{_github_user}}"
   when: >
+    _github_home is undefined and
     ansible_os_family != "Darwin"
 
 - set_fact:
     _github_home: "/var/{{_github_user}}"
   when: >
+    _github_home is undefined and
     ansible_os_family == "Darwin"
 
 - set_fact:
