@@ -5,6 +5,7 @@
 # https://github.com/actions/runner/releases
 #
 # TODO: split this into the main file, and an include looping over github runner variable
+#       catch errors for reconfiguring runners
 
 - name: include user creation tasks
   include_tasks: unix_user.yml
@@ -14,7 +15,16 @@
   when: github_worker_labels is defined
 
 - set_fact:
-    _repository: "{{github_worker_repository|default(github_worker.repository)}}"
+    _url: "{{github_worker_repository|default(github_worker.repository)}}"
+  when: >
+    github_worker_repository is defined or
+    github_worker.repository is defined
+
+- set_fact:
+    _url: "{{github_worker_url|default(github_worker.url)}}"
+  when: >
+    github_worker_url is defined or
+    github_worker.url is defined
 
 # TODO: this is a a bit of partial logic for supporting multiple runners on a
 #       single host; eventually that'd need to be replaced with a proper name
@@ -55,7 +65,7 @@
   when: >
     ansible_service_mgr == 'systemd'
 
-- name: create directory for github runner
+- name: create directory for github runner ({{_runner_dir}})
   file:
     path: "{{_runner_dir}}"
     owner: "{{_github_user}}"
@@ -106,12 +116,19 @@
   when: >
     ansible_service_mgr == 'systemd'
 
+- fail:
+    msg: "Warning: Worker registration not possible as URL is missing. Upcoming steps may fail."
+  when: _url is undefined
+  ignore_errors: True
+
 - name: register github worker
   command: >
-    {{gitub.runner_arch|default('')}} ./config.sh --url {{_repository}} --name {{inventory_hostname}} --work {{_github_home}}/work --replace --unattended --labels {{_labels}} --token {{gh_token}}
+    {{gitub.runner_arch|default('')}} ./config.sh --url {{_url}} --name {{inventory_hostname}} --work {{_github_home}}/work --replace --unattended --labels {{_labels}} --token {{gh_token}}
   args:
     chdir: "{{_runner_dir}}"
-  when: gh_token is defined
+  when: >
+    gh_token is defined and
+    _url is defined
   become: True
   become_user: "{{_github_user}}"
 
