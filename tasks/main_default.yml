@@ -33,7 +33,7 @@
     _runner_name: default
 
 - set_fact:
-    _gh_installer_version: "{{github.installer_version|default('2.292.0')}}"
+    _gh_installer_version: "{{github.installer_version|default('2.313.0')}}"
 
 - set_fact:
     _gh_installer: "https://github.com/actions/runner/releases/download/v{{_gh_installer_version}}/actions-runner-linux-x64-{{_gh_installer_version}}.tar.gz"
@@ -138,3 +138,29 @@
     state: started
     name: "actions.runner@{{_runner_name}}"
   when: ansible_os_family != "Darwin"
+
+- name: copy runsvc.sh
+  copy:
+    src: "{{_runner_dir}}/bin/runsvc.sh"
+    dest: "{{_runner_dir}}/runsvc.sh"
+    remote_src: true
+    mode: 0755
+    owner: "{{_github_user}}"
+
+- name: start and enable service (Darwin)
+  include_role:
+    name: data-utilities
+    tasks_from: manage_service
+  vars:
+    service:
+      name: "actions.runner.{{_runner_name}}"
+      exec_start: "{{_runner_dir}}/runsvc.sh"
+      user: "{{_github_user}}"
+      standard_output: "{{_github_home}}/{{_runner_name}}.out"
+      standard_error: "{{_github_home}}/{{_runner_name}}.err"
+      environment:
+        ACTIONS_RUNNER_SVC: 1
+      working_directory: "{{_runner_dir}}"
+      session_create: true
+      processtype: Interactive
+  when: ansible_os_family == "Darwin"
